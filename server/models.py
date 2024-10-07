@@ -3,7 +3,7 @@ from sqlalchemy import MetaData
 from sqlalchemy.orm import validates
 from sqlalchemy_serializer import SerializerMixin
 
-# Define a naming convention for foreign keys
+
 metadata = MetaData(naming_convention={
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
 })
@@ -14,20 +14,23 @@ class Hero(db.Model, SerializerMixin):
     __tablename__ = 'heroes'
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100))  # Optional: Limit length
-    super_name = db.Column(db.String(100))  # Optional: Limit length
+    name = db.Column(db.String(100))  
+    super_name = db.Column(db.String(100))  
 
-    # Relationship with HeroPower
+
     hero_powers = db.relationship('HeroPower', back_populates='hero', cascade='all, delete-orphan')
 
-    def to_dict(self):
+    def to_dict(self, only=None):
         """Convert Hero instance to dictionary representation."""
-        return {
+        data = {
             "id": self.id,
             "name": self.name,
             "super_name": self.super_name,
             "hero_powers": [hp.to_dict_minimal() for hp in self.hero_powers]
         }
+        if only:
+            return {key: data[key] for key in only if key in data}
+        return data
 
     def __repr__(self):
         return f'<Hero {self.id}>'
@@ -37,19 +40,22 @@ class Power(db.Model, SerializerMixin):
     __tablename__ = 'powers'
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100))  # Optional: Limit length
-    description = db.Column(db.String)  # Optional: Limit length
+    name = db.Column(db.String(100)) 
+    description = db.Column(db.String)  
 
-    # Relationship with HeroPower
+
     hero_powers = db.relationship('HeroPower', back_populates='power', cascade='all, delete-orphan')
 
-    def to_dict(self):
+    def to_dict(self, only=None):
         """Convert Power instance to dictionary representation."""
-        return {
+        data = {
             "id": self.id,
             "name": self.name,
             "description": self.description,
         }
+        if only:
+            return {key: data[key] for key in only if key in data}
+        return data
 
     @validates('description')
     def validate_description(self, key, value):
@@ -68,16 +74,16 @@ class HeroPower(db.Model, SerializerMixin):
     id = db.Column(db.Integer, primary_key=True)
     strength = db.Column(db.String, nullable=False)
 
-    # Relationships
+
     hero_id = db.Column(db.Integer, db.ForeignKey('heroes.id'), nullable=False)
     power_id = db.Column(db.Integer, db.ForeignKey('powers.id'), nullable=False)
 
     hero = db.relationship('Hero', back_populates='hero_powers')
     power = db.relationship('Power', back_populates='hero_powers')
 
-    def to_dict(self):
+    def to_dict(self, only=None):
         """Convert HeroPower instance to dictionary representation."""
-        return {
+        data = {
             "id": self.id,
             "strength": self.strength,
             "hero_id": self.hero_id,
@@ -85,6 +91,9 @@ class HeroPower(db.Model, SerializerMixin):
             "hero": self.hero.to_dict(),
             "power": self.power.to_dict(),
         }
+        if only:
+            return {key: data[key] for key in only if key in data}
+        return data
 
     def to_dict_minimal(self):
         """Convert HeroPower instance to minimal dictionary representation."""

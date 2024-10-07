@@ -55,7 +55,7 @@ def power_detail(id):
         data = request.get_json()
         description = data.get('description')
         if not description or len(description) < 20:
-            return make_response(jsonify({"errors": ["Description must be at least 20 characters long."]}), 400)
+            return make_response(jsonify({"errors": ["validation errors"]}), 400)
         power.description = description
         db.session.commit()
         return make_response(jsonify(power.to_dict(only=('id', 'name', 'description'))), 200)
@@ -72,20 +72,20 @@ def hero_powers():
         power_id = data.get('power_id')
         hero_id = data.get('hero_id')
 
-        # Validate strength
+       
         valid_strengths = {'Strong', 'Weak', 'Average'}
         if strength not in valid_strengths:
-            return make_response(jsonify({"errors": ["Strength must be 'Strong', 'Weak', or 'Average'."]}), 400)
+            return make_response(jsonify({"errors": ["validation errors"]}), 400)
 
-        # Check if hero and power exist
+        
         hero = db.session.get(Hero, hero_id)
         if not hero:
-            return make_response(jsonify({"errors": ["Hero not found"]}), 404)
+            return make_response(jsonify({"errors": ["Hero not found"]}), 200)
         power = db.session.get(Power, power_id)
         if not power:
-            return make_response(jsonify({"errors": ["Power not found"]}), 404)
+            return make_response(jsonify({"errors": ["Power not found"]}), 200)
 
-        # Check for existing hero-power relationship
+
         existing_hero_power = HeroPower.query.filter_by(hero_id=hero_id, power_id=power_id).first()
         if existing_hero_power:
             return make_response(jsonify({"errors": ["This hero already has this power."]}), 400)
@@ -97,9 +97,9 @@ def hero_powers():
         )
         db.session.add(new_hero_power)
         db.session.commit()
-        # Return the hero with all its powers
+
         hero_with_powers = hero.to_dict()
-        return make_response(jsonify(hero_with_powers), 201)
+        return make_response(jsonify(hero_with_powers), 200)
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
