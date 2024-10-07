@@ -72,19 +72,16 @@ def hero_powers():
         power_id = data.get('power_id')
         hero_id = data.get('hero_id')
 
-       
         valid_strengths = {'Strong', 'Weak', 'Average'}
         if strength not in valid_strengths:
             return make_response(jsonify({"errors": ["validation errors"]}), 400)
 
-        
         hero = db.session.get(Hero, hero_id)
         if not hero:
-            return make_response(jsonify({"errors": ["Hero not found"]}), 200)
+            return make_response(jsonify({"errors": ["Hero not found"]}), 404)
         power = db.session.get(Power, power_id)
         if not power:
-            return make_response(jsonify({"errors": ["Power not found"]}), 200)
-
+            return make_response(jsonify({"errors": ["Power not found"]}), 404)
 
         existing_hero_power = HeroPower.query.filter_by(hero_id=hero_id, power_id=power_id).first()
         if existing_hero_power:
@@ -98,8 +95,6 @@ def hero_powers():
         db.session.add(new_hero_power)
         db.session.commit()
 
-        hero_with_powers = hero.to_dict()
-        return make_response(jsonify(hero_with_powers), 200)
-
+        return make_response(jsonify(new_hero_power.to_dict()), 200)
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
