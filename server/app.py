@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, make_response, jsonify
 from flask_migrate import Migrate
-from flask_restful import Api, Resource
+from flask_restful import Api
 from models import db, Hero, Power, HeroPower
 import os
 
@@ -14,82 +14,82 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.json.compact = False
 
-db.init_app(app)  # Initialize the db before using it with migrate
-migrate = Migrate(app, db)  # Now we can use migrate
-
+db.init_app(app)
+migrate = Migrate(app, db)
 api = Api(app)
 
-# Route for getting all heroes
-class HeroList(Resource):
-    def get(self):
-        heroes = Hero.query.all()
-        return jsonify([{
-            'id': hero.id,
-            'name': hero.name,
-            'super_name': hero.super_name
-        } for hero in heroes])  # Updated to return only necessary fields
+@app.route('/')
+def index():
+    return '<h1>Code Challenge</h1>'
 
-# Route for getting a hero by id
-class HeroDetail(Resource):
-    def get(self, id):
-        hero = db.session.get(Hero, id)  # Updated line
-        if not hero:
-            return {"error": "Hero not found"}, 404
-        return jsonify(hero.to_dict())
+@app.route('/heroes', methods=['GET'])
+def get_heroes():
+    heroes = Hero.query.all()
+    response = [hero.to_dict(only=("id", "name", "super_name")) for hero in heroes]
+    return make_response(jsonify(response), 200)
 
-# Route for getting all powers
-class PowerList(Resource):
-    def get(self):
-        powers = Power.query.all()
-        return jsonify([power.to_dict() for power in powers])
+@app.route('/heroes/<int:id>', methods=['GET'])
+def get_hero(id):
+    hero = db.session.get(Hero, id)
+    if not hero:
+        error_body = {"error": "Hero not found"}
+        return make_response(jsonify(error_body), 404)
+    return make_response(jsonify(hero.to_dict()), 200)
 
-# Route for getting a power by id
-class PowerDetail(Resource):
-    def get(self, id):
-        power = db.session.get(Power, id)  # Updated line
-        if not power:
-            return {"error": "Power not found"}, 404
-        return jsonify(power.to_dict())
+@app.route('/powers', methods=['GET'])
+def get_powers():
+    powers = Power.query.all()
+    response = [power.to_dict(only=('id', 'name', 'description')) for power in powers]
+    return make_response(jsonify(response), 200)
 
-    def patch(self, id):
-        power = db.session.get(Power, id)  # Updated line
-        if not power:
-            return {"error": "Power not found"}, 404
-        
+@app.route('/powers/<int:id>', methods=['GET', 'PATCH'])
+def power_detail(id):
+    power = db.session.get(Power, id)
+    if not power:
+        error_body = {"error": "Power not found"}
+        return make_response(jsonify(error_body), 404)
+
+    if request.method == 'GET':
+        return make_response(jsonify(power.to_dict(only=('id', 'name', 'description'))), 200)
+    elif request.method == 'PATCH':
         data = request.get_json()
-        if 'description' in data:
-            if len(data['description']) < 20:
-                return {"errors": ["validation errors"]}, 400  # Change this line
-            power.description = data['description']
-            db.session.commit()
-            return jsonify(power.to_dict())
-        return {"errors": ["No valid fields provided"]}, 400
+        description = data.get('description')
+        if not description or len(description) < 20:
+            return make_response(jsonify({"errors": ["Description must be at least 20 characters long."]}), 400)
+        power.description = description
+        db.session.commit()
+        return make_response(jsonify(power.to_dict(only=('id', 'name', 'description'))), 200)
 
-# Route for creating a new HeroPower
-class HeroPowerList(Resource):
-    def post(self):
+@app.route('/hero_powers', methods=['GET', 'POST'])
+def hero_powers():
+    if request.method == 'GET':
+        hero_powers = HeroPower.query.all()
+        response = [hero_power.to_dict() for hero_power in hero_powers]
+        return make_response(jsonify(response), 200)
+    elif request.method == 'POST':
         data = request.get_json()
         strength = data.get('strength')
         power_id = data.get('power_id')
         hero_id = data.get('hero_id')
 
-        # Check if the power and hero exist
-        hero = db.session.get(Hero, hero_id)  # Updated line
+        # Validate strength
+        valid_strengths = {'Strong', 'Weak', 'Average'}
+        if strength not in valid_strengths:
+            return make_response(jsonify({"errors": ["Strength must be 'Strong', 'Weak', or 'Average'."]}), 400)
+
+        # Check if hero and power exist
+        hero = db.session.get(Hero, hero_id)
         if not hero:
-            return {"errors": ["Hero not found"]}, 404
-        
-        power = db.session.get(Power, power_id)  # Updated line
+            return make_response(jsonify({"errors": ["Hero not found"]}), 404)
+        power = db.session.get(Power, power_id)
         if not power:
-            return {"errors": ["Power not found"]}, 404
+            return make_response(jsonify({"errors": ["Power not found"]}), 404)
 
-        if strength not in ['Strong', 'Weak', 'Average']:
-            return {"errors": ["validation errors"]}, 400  # Change this line
-
-        # Check if the HeroPower already exists
+        # Check for existing hero-power relationship
         existing_hero_power = HeroPower.query.filter_by(hero_id=hero_id, power_id=power_id).first()
         if existing_hero_power:
-            return {"errors": ["This hero already has this power."]}, 400
-        
+            return make_response(jsonify({"errors": ["This hero already has this power."]}), 400)
+
         new_hero_power = HeroPower(
             strength=strength,
             power_id=power_id,
@@ -97,26 +97,9 @@ class HeroPowerList(Resource):
         )
         db.session.add(new_hero_power)
         db.session.commit()
-
-        return jsonify({
-            "id": new_hero_power.id,
-            "hero_id": hero.id,
-            "power_id": power.id,
-            "strength": strength,
-            "hero": hero.to_dict(),
-            "power": power.to_dict()
-        }), 201
-
-# Registering routes
-api.add_resource(HeroList, '/heroes')
-api.add_resource(HeroDetail, '/heroes/<int:id>')
-api.add_resource(PowerList, '/powers')
-api.add_resource(PowerDetail, '/powers/<int:id>')
-api.add_resource(HeroPowerList, '/hero_powers')
-
-@app.route('/')
-def index():
-    return '<h1>Code challenge</h1>'
+        # Return the hero with all its powers
+        hero_with_powers = hero.to_dict()
+        return make_response(jsonify(hero_with_powers), 201)
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
